@@ -79,6 +79,26 @@ Since v0.11.0 the SDK selects the transport via **URL scheme** — no separate b
 
 All commands (KV, Hash, List, Set, Sorted Set, Queue, Stream, Pub/Sub, Transactions, Scripts, Geo, HyperLogLog) are fully supported on every transport. Native transports throw `UnsupportedCommandException` instead of silently falling back to HTTP.
 
+### The `synap://` transport is Thunder
+
+The binary transport is not hand-written in this SDK. It is
+[Thunder](https://github.com/hivellm/thunder) (`hivellm/thunder`) — the HiveLLM
+family's shared binary RPC client, the same protocol the Synap server runs on,
+so the two ends of the wire cannot drift.
+
+| | |
+|---|---|
+| **Frame cap** | 512 MiB, validated against the length prefix **before** allocating. |
+| **Authentication** | `withAuthToken` / `withBasicAuth` credentials travel in the handshake. The previous transport never sent `AUTH`, so it could not reach a `require_auth` server on 15501 at all. |
+| **Binary values** | A value that is not valid UTF-8 survives byte-exact: such strings travel as MessagePack `bin`. Sent as `str`, the server rejected the frame and closed the connection. |
+| **Push** | `subscribePush` receives server-push frames. The previous implementation sent `SUBSCRIBE` with `id = 0xFFFFFFFF`, the reserved push sentinel, which the server refuses outright — pub/sub over SynapRPC could not work at all. |
+
+Thunder's PHP client is synchronous and exposes no public poll, so a push
+subscription keeps the reader running by issuing a cheap `PING` and collecting
+it; push frames that arrived meanwhile are dispatched during that read. A public
+poll is requested upstream in
+[thunder#11](https://github.com/hivellm/thunder/issues/11).
+
 ```php
 use Synap\SDK\SynapConfig;
 use Synap\SDK\SynapClient;

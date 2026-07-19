@@ -24,11 +24,22 @@ consumed by the Synap repo as a submodule.
   packed as MessagePack `str`, and the server closed the connection. Such
   strings now travel as `bin`.
 
+### Changed
+- **The `synap://` transport now runs on [Thunder](https://github.com/hivellm/thunder)**
+  (`hivellm/thunder` 0.2.1), the family's shared binary RPC client — the same
+  protocol implementation the Synap server runs, so the two ends of the wire
+  cannot drift. The hand-written framing, socket handling and externally-tagged
+  value codec are gone.
+
 ### Notes
-- This SDK keeps a hand-written transport: Thunder, which the other SDKs moved
-  onto, has no PHP package. It is verified against the same server build as
-  every other SDK by the cross-SDK interop matrix, and all four of its cells are
-  green.
+- Thunder's PHP client is synchronous and exposes no public poll, so a
+  push subscription keeps the reader running by issuing a cheap `PING` and
+  collecting it. Push frames that arrived meanwhile are dispatched during that
+  read. Asked upstream for a public poll
+  ([thunder#11](https://github.com/hivellm/thunder/issues/11)); this is the
+  workaround until it lands.
+- Verified against the same server build as every other SDK by the cross-SDK
+  interop matrix: all four cells green.
 
 ## [1.0.0] - 2026-07-11
 
