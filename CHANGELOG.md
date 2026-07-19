@@ -5,6 +5,31 @@ All notable changes to the Synap PHP SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-19
+
+The SDK now lives in its own repository, `hivellm/synap-sdk-php`, and is
+consumed by the Synap repo as a submodule.
+
+### Fixed
+- **The SDK can reach an authenticated server over `synap://`.** The RPC
+  transport never sent `AUTH`, so against a `require_auth` deployment on 15501
+  every command came back `NOAUTH` — the transport was unusable, not degraded.
+  Credentials now open both the command socket and the dedicated push socket.
+- **Pub/sub over SynapRPC works.** `SUBSCRIBE` was sent with `id = 0xFFFFFFFF`,
+  the reserved server-push sentinel, which the server refuses outright: `ERR
+  request id u32::MAX is reserved for server push frames`. It now uses an
+  ordinary request id — the sentinel identifies frames coming *from* the server
+  and was never an address a client could send to.
+- **Binary values survive the round trip.** A string that is not valid UTF-8 was
+  packed as MessagePack `str`, and the server closed the connection. Such
+  strings now travel as `bin`.
+
+### Notes
+- This SDK keeps a hand-written transport: Thunder, which the other SDKs moved
+  onto, has no PHP package. It is verified against the same server build as
+  every other SDK by the cross-SDK interop matrix, and all four of its cells are
+  green.
+
 ## [1.0.0] - 2026-07-11
 
 ### Changed
