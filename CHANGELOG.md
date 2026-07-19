@@ -5,6 +5,25 @@ All notable changes to the Synap PHP SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-07-19
+
+### Changed
+- **The `synap://` transport now runs on [Thunder](https://github.com/hivellm/thunder)**
+  (`hivellm/thunder` 0.2.1), the family's shared binary RPC client — the same
+  protocol implementation the Synap server runs, so the two ends of the wire
+  cannot drift. The hand-written framing, socket handling and externally-tagged
+  value codec are gone.
+
+  This lands as 1.2.1 rather than in 1.2.0 because Thunder's PHP package reached
+  Packagist after 1.2.0 had already been tagged and indexed.
+
+### Notes
+- Thunder's PHP client is synchronous and exposes no public poll, so a push
+  subscription keeps the reader running by issuing a cheap `PING` and collecting
+  it. Push frames that arrived meanwhile are dispatched during that read. Asked
+  upstream for a public poll
+  ([thunder#11](https://github.com/hivellm/thunder/issues/11)).
+
 ## [1.2.0] - 2026-07-19
 
 The SDK now lives in its own repository, `hivellm/synap-sdk-php`, and is
@@ -24,20 +43,7 @@ consumed by the Synap repo as a submodule.
   packed as MessagePack `str`, and the server closed the connection. Such
   strings now travel as `bin`.
 
-### Changed
-- **The `synap://` transport now runs on [Thunder](https://github.com/hivellm/thunder)**
-  (`hivellm/thunder` 0.2.1), the family's shared binary RPC client — the same
-  protocol implementation the Synap server runs, so the two ends of the wire
-  cannot drift. The hand-written framing, socket handling and externally-tagged
-  value codec are gone.
-
 ### Notes
-- Thunder's PHP client is synchronous and exposes no public poll, so a
-  push subscription keeps the reader running by issuing a cheap `PING` and
-  collecting it. Push frames that arrived meanwhile are dispatched during that
-  read. Asked upstream for a public poll
-  ([thunder#11](https://github.com/hivellm/thunder/issues/11)); this is the
-  workaround until it lands.
 - Verified against the same server build as every other SDK by the cross-SDK
   interop matrix: all four cells green.
 
