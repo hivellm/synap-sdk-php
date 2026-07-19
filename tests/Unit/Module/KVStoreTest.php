@@ -62,4 +62,21 @@ final class KVStoreTest extends TestCase
 
         // Would call: $keys = $this->kv->scan('user:', 50);
     }
+
+    public function testWatchRequiresTheRpcTransport(): void
+    {
+        // The test client is on http://, so there is no SynapRPC transport.
+        $this->expectException(\Synap\SDK\Exception\SynapException::class);
+        $this->expectExceptionMessageMatches('~synap://~');
+
+        $this->kv->watch('k', static fn (): mixed => null);
+    }
+
+    public function testWatchEventsRequiresTheRpcTransport(): void
+    {
+        $this->expectException(\Synap\SDK\Exception\SynapException::class);
+
+        // Generators are lazy — the transport check fires on first iteration.
+        iterator_to_array($this->kv->watchEvents('k'));
+    }
 }

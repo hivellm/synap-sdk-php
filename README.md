@@ -184,6 +184,32 @@ $stats = $client->kv()->stats();
 $keys = $client->kv()->scan('user:', 100);
 ```
 
+### KV Watch
+
+Observe a key — or a wildcard pattern — and receive its **new value** on every
+change. Requires the `synap://` transport; the loop blocks the current process
+(same model as `pubsub()->observe()`) and issues `KV.UNWATCH` on the way out:
+
+```php
+use Synap\SDK\Types\WatchEvent;
+
+// Callback flavor
+$client->kv()->watch('user:*', function (WatchEvent $event): void {
+    echo "{$event->event} {$event->key} v{$event->version} = {$event->value}\n";
+});
+
+// Iterator flavor
+foreach ($client->kv()->watchEvents('user:*') as $event) {
+    echo "{$event->key} => {$event->value}\n";
+}
+
+// Notify-only mode: change signals without value bandwidth (re-GET on demand)
+$client->kv()->watch('hot:key', $onEvent, 'notify');
+```
+
+Delivery is best-effort, latest-value; `WatchEvent::$version` resets when the
+key is deleted, expires or is evicted — version 1 marks a new incarnation.
+
 ### Message Queues
 
 ```php

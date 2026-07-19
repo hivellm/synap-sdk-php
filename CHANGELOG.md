@@ -5,6 +5,17 @@ All notable changes to the Synap PHP SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **KV watch.** `$client->kv()->watch($pattern, $onEvent, $mode)` (callback)
+  and `watchEvents($pattern, $mode)` (Generator) stream value-carrying change
+  envelopes over a dedicated `KV.WATCH` push connection, decoded into the new
+  `Synap\SDK\Types\WatchEvent` value object. `mode: 'notify'` asks the server
+  to strip values per subscription. The pump exits on the transport timeout or
+  a `$shouldStop` predicate and issues `KV.UNWATCH` on the way out. SynapRPC
+  only; HTTP clients get a clear error pointing at the `/kv/ws` endpoint.
+
 ## [1.2.1] - 2026-07-19
 
 ### Changed

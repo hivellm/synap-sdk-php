@@ -17,6 +17,7 @@ use HiveLLM\Thunder\Wire\Kind;
 use HiveLLM\Thunder\Wire\MapEntry;
 use HiveLLM\Thunder\Wire\Value;
 use Synap\SDK\Exception\SynapException;
+use Synap\SDK\Types\WatchEvent;
 
 /**
  * SynapRPC transport, backed by Thunder.
@@ -296,6 +297,115 @@ class SynapRpcTransport
         }
 
         $client->close();
+    }
+
+    /**
+     * Open a dedicated push connection driven by `KV.WATCH` and yield each
+     * watch envelope as a {@see WatchEvent} — the watch twin of
+     * {@see subscribePush}, with the same PING-based pump (thunder#11).
+     *
+     * The generator runs until the transport timeout elapses, `$shouldStop`
+     * returns true, or the connection dies. On exit it issues `KV.UNWATCH`
+     * (best-effort) before closing the connection.
+     *
+     * @param string        $pattern    Key or wildcard pattern (e.g. `user:*`)
+     * @param string        $mode       `value` (envelopes carry the value) or `notify`
+     * @param callable|null $shouldStop Optional predicate — the loop exits when it returns true
+     * @return \Generator<int, WatchEvent, mixed, void>
+     * @throws SynapException on connection or watch failure
+     */
+    public function watchPushIterator(
+        string $pattern,
+        string $mode = 'value',
+        ?callable $shouldStop = null,
+    ): \Generator {
+        $client = $this->dial();
+
+        /** @var list<WatchEvent> $buffer */
+        $buffer = [];
+        $client->onPush(static function (Value $value) use (&$buffer): void {
+            $frame = self::fromWire($value);
+            if (!is_array($frame)) {
+                return;
+            }
+            // The bridge encodes the envelope as a JSON string.
+            $payload = $frame['payload'] ?? null;
+            if (is_string($payload)) {
+                $payload = json_decode($payload, true);
+            }
+            if (is_array($payload)) {
+                /** @var array<string, mixed> $payload */
+                $buffer[] = WatchEvent::fromArray($payload);
+            }
+        });
+
+        $args = [self::toWire($pattern)];
+        if ($mode !== 'value') {
+            $args[] = self::toWire($mode);
+        }
+
+        try {
+            $result = $client->call('KV.WATCH', $args);
+        } catch (ThunderException $e) {
+            $client->close();
+            throw SynapException::serverError($e->getMessage());
+        }
+
+        $decoded = self::fromWire($result);
+        $subscriberId = '';
+        if (is_array($decoded) && is_string($decoded['subscriber_id'] ?? null)) {
+            $subscriberId = $decoded['subscriber_id'];
+        }
+
+        try {
+            // Pump the connection so push frames reach the hook — same
+            // workaround as subscribePush until thunder#11 lands.
+            $deadline = microtime(true) + $this->timeoutSecs;
+            while (microtime(true) < $deadline && $client->isAlive()) {
+                if ($shouldStop !== null && $shouldStop()) {
+                    break;
+                }
+                try {
+                    $id = $client->send('PING');
+                    $client->collect($id, 0.25);
+                } catch (ThunderException) {
+                    // Idle window, not a failure.
+                }
+                while ($buffer !== []) {
+                    yield array_shift($buffer);
+                }
+            }
+        } finally {
+            // Teardown issues KV.UNWATCH so the server drops the routing entry
+            // before the socket closes. Best-effort: closing unwinds it anyway.
+            if ($subscriberId !== '') {
+                try {
+                    $client->call('KV.UNWATCH', [self::toWire($subscriberId)]);
+                } catch (ThunderException) {
+                    // The connection may already be gone.
+                }
+            }
+            $client->close();
+        }
+    }
+
+    /**
+     * Callback flavor of {@see watchPushIterator}: invoke `$onEvent` for each
+     * watch envelope until the timeout elapses or `$shouldStop` returns true.
+     *
+     * @param callable      $onEvent    Called with each {@see WatchEvent}
+     * @param callable|null $shouldStop Optional predicate — the loop exits when it returns true
+     * @throws SynapException on connection or watch failure
+     */
+    public function watchPush(
+        string $pattern,
+        callable $onEvent,
+        string $mode = 'value',
+        ?callable $shouldStop = null,
+    ): void {
+        foreach ($this->watchPushIterator($pattern, $mode, $shouldStop) as $event) {
+            $onEvent($event);
+        }
     }
 
     /** Close the connection and fail anything still in flight. */
