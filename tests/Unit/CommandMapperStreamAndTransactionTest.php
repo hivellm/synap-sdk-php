@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Synap\SDK\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use Synap\SDK\TransportMode;
 
 use function Synap\SDK\mapCommand;
 use function Synap\SDK\mapResponse;
@@ -60,13 +61,27 @@ final class CommandMapperStreamAndTransactionTest extends TestCase
         $this->assertSame('UNSUBSCRIBE', $unsubscribe[0]);
         $this->assertSame(['sub-1', 'a'], $unsubscribe[1]);
 
-        $topics = mapCommand('pubsub.topics', []);
-        $this->assertNotNull($topics);
-        $this->assertSame('TOPICS', $topics[0]);
-
         $stats = mapCommand('pubsub.stats', []);
         $this->assertNotNull($stats);
         $this->assertSame('PSSTATS', $stats[0]);
+    }
+
+    /**
+     * The two native wires name topic listing differently: SynapRPC dispatches
+     * TOPICS and has no PUBSUB, RESP3 dispatches PUBSUB CHANNELS and has no
+     * TOPICS — so one mapping cannot serve both.
+     */
+    public function testTopicListingFollowsTheTransport(): void
+    {
+        $rpc = mapCommand('pubsub.topics', [], TransportMode::SYNAP_RPC);
+        $this->assertNotNull($rpc);
+        $this->assertSame('TOPICS', $rpc[0]);
+        $this->assertSame([], $rpc[1]);
+
+        $resp3 = mapCommand('pubsub.topics', [], TransportMode::RESP3);
+        $this->assertNotNull($resp3);
+        $this->assertSame('PUBSUB', $resp3[0]);
+        $this->assertSame(['CHANNELS'], $resp3[1]);
     }
 
     public function testSubscribeResponseKeepsTheSubscriberId(): void
@@ -131,6 +146,37 @@ final class CommandMapperStreamAndTransactionTest extends TestCase
             'event' => 'e',
             'client_id' => 'cli-1',
         ]));
+    }
+
+    /**
+     * `kv.delete` is an SDK-only spelling: the native mapper accepted it, so
+     * the bug only showed over HTTP, where the server — which dispatches
+     * `kv.del` — answered "Unknown command: kv.delete".
+     */
+    public function testKvDeleteSendsTheCommandTheServerDispatches(): void
+    {
+        $client = $this->createMock(\Synap\SDK\SynapClient::class);
+        $client->expects($this->once())
+            ->method('execute')
+            ->with('kv.del', 'k', [])
+            ->willReturn([]);
+
+        (new \Synap\SDK\Module\KVStore($client))->delete('k');
+    }
+
+    /**
+     * A write inside a transaction carries the client id all the way down to
+     * the payload, which is what turns it into a TXQUEUE on the wire.
+     */
+    public function testWriteMethodsForwardTheClientId(): void
+    {
+        $client = $this->createMock(\Synap\SDK\SynapClient::class);
+        $client->expects($this->once())
+            ->method('execute')
+            ->with('kv.set', 'k', ['value' => 'v', 'client_id' => 'cli-1'])
+            ->willReturn([]);
+
+        (new \Synap\SDK\Module\KVStore($client))->set('k', 'v', null, 'cli-1');
     }
 
     /**

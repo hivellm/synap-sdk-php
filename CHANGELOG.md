@@ -17,6 +17,15 @@ had shipped that way because nothing tested the command mapping. 1.3.0 is
 skipped so the number matches the server release this SDK is verified against.
 
 ### Fixed
+- **Deleting a key over HTTP works.** `KVStore::delete()` sent `kv.delete`,
+  which the server does not dispatch — it answers `kv.del`. The native mapper
+  accepted both spellings, so the break was HTTP-only and came back as
+  `Unknown command: kv.delete`.
+- **Topic listing follows the transport.** `pubsub.topics` mapped to `TOPICS`
+  for both native wires, but only SynapRPC dispatches it: RESP3 answers
+  `PUBSUB CHANNELS` and has no `TOPICS`, so listing topics over RESP3 failed.
+  `mapCommand()` now takes the transport for the few commands whose wire name
+  differs between the two.
 - **Pub/Sub reaches the native transports at all.** Every pub/sub command was
   mapped with a `P` prefix the server has never dispatched — `PPUBLISH`,
   `PSUBSCRIBE`, `PUNSUBSCRIBE`, `PTOPICS`, `PSTATS` — so publishing or
@@ -32,7 +41,11 @@ skipped so the number matches the server release this SDK is verified against.
 - **Transactional writes on the native transports** (ADR 005, server 1.3.0): a
   write carrying a `client_id` now travels as `TXQUEUE <client_id> <CMD>
   <args...>` so the server queues it into the open `MULTI` instead of executing
-  it immediately. Commands the server cannot queue are refused with
+  it immediately. Every queueable write method takes an optional `$clientId`
+  (`KVStore::set`/`delete`/`incr`/`decr`, `HashManager::set`/`delete`/`incrBy`,
+  `ListManager::lpush`/`rpush`/`lpop`/`rpop`, `SetManager::add`/`rem`), so a
+  transaction can be assembled through the modules rather than by hand-building
+  payloads. Commands the server cannot queue are refused with
   `UnsupportedCommandException` rather than silently executed outside the
   transaction. The queueable set matches the server's `TransactionCommand`
   enum: `SET`/`DEL`/`INCR[BY]`/`DECR[BY]`/`HSET`/`HDEL`/`HINCRBY`/`LPUSH`/

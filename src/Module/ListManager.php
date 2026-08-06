@@ -21,9 +21,14 @@ class ListManager
      *
      * @param list<string> $values
      */
-    public function lpush(string $key, array $values): int
+    public function lpush(string $key, array $values, ?string $clientId = null): int
     {
-        $response = $this->client->execute('list.lpush', $key, ['values' => $values]);
+        $data = ['values' => $values];
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
+        }
+
+        $response = $this->client->execute('list.lpush', $key, $data);
 
         return (int) ($response['length'] ?? 0);
     }
@@ -33,9 +38,14 @@ class ListManager
      *
      * @param list<string> $values
      */
-    public function rpush(string $key, array $values): int
+    public function rpush(string $key, array $values, ?string $clientId = null): int
     {
-        $response = $this->client->execute('list.rpush', $key, ['values' => $values]);
+        $data = ['values' => $values];
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
+        }
+
+        $response = $this->client->execute('list.rpush', $key, $data);
 
         return (int) ($response['length'] ?? 0);
     }
@@ -45,9 +55,14 @@ class ListManager
      *
      * @return list<string>
      */
-    public function lpop(string $key, int $count = 1): array
+    public function lpop(string $key, int $count = 1, ?string $clientId = null): array
     {
-        $response = $this->client->execute('list.lpop', $key, ['count' => $count]);
+        $data = ['count' => $count];
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
+        }
+
+        $response = $this->client->execute('list.lpop', $key, $data);
 
         return $response['values'] ?? [];
     }
@@ -57,9 +72,14 @@ class ListManager
      *
      * @return list<string>
      */
-    public function rpop(string $key, int $count = 1): array
+    public function rpop(string $key, int $count = 1, ?string $clientId = null): array
     {
-        $response = $this->client->execute('list.rpop', $key, ['count' => $count]);
+        $data = ['count' => $count];
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
+        }
+
+        $response = $this->client->execute('list.rpop', $key, $data);
 
         return $response['values'] ?? [];
     }

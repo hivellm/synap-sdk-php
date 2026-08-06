@@ -21,9 +21,14 @@ class SetManager
      *
      * @param list<string> $members
      */
-    public function add(string $key, array $members): int
+    public function add(string $key, array $members, ?string $clientId = null): int
     {
-        $response = $this->client->execute('set.add', $key, ['members' => $members]);
+        $data = ['members' => $members];
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
+        }
+
+        $response = $this->client->execute('set.add', $key, $data);
 
         return (int) ($response['added'] ?? 0);
     }
@@ -33,9 +38,14 @@ class SetManager
      *
      * @param list<string> $members
      */
-    public function rem(string $key, array $members): int
+    public function rem(string $key, array $members, ?string $clientId = null): int
     {
-        $response = $this->client->execute('set.rem', $key, ['members' => $members]);
+        $data = ['members' => $members];
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
+        }
+
+        $response = $this->client->execute('set.rem', $key, $data);
 
         return (int) ($response['removed'] ?? 0);
     }

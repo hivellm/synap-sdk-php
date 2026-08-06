@@ -20,13 +20,19 @@ class KVStore
 
     /**
      * Set a key-value pair
+     *
+     * @param string|null $clientId Queue the write into the open MULTI keyed by
+     *                              this client id instead of applying it now
      */
-    public function set(string $key, mixed $value, ?int $ttl = null): void
+    public function set(string $key, mixed $value, ?int $ttl = null, ?string $clientId = null): void
     {
         $data = ['value' => $value];
 
         if ($ttl !== null) {
             $data['ttl'] = $ttl;
+        }
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
         }
 
         $this->client->execute('kv.set', $key, $data);
@@ -44,10 +50,18 @@ class KVStore
 
     /**
      * Delete a key
+     *
+     * @param string|null $clientId Queue the write into the open MULTI keyed by
+     *                              this client id instead of applying it now
      */
-    public function delete(string $key): void
+    public function delete(string $key, ?string $clientId = null): void
     {
-        $this->client->execute('kv.delete', $key);
+        $data = $clientId !== null ? ['client_id' => $clientId] : [];
+
+        // `kv.del` is the command the server dispatches; `kv.delete` only ever
+        // worked because the native mapper accepted both spellings, so a delete
+        // over HTTP came back "Unknown command: kv.delete".
+        $this->client->execute('kv.del', $key, $data);
     }
 
     /**
@@ -62,10 +76,20 @@ class KVStore
 
     /**
      * Increment a numeric value
+     *
+     * @param string|null $clientId Queue the write into the open MULTI keyed by
+     *                              this client id instead of applying it now.
+     *                              A queued write returns 0 — the real value is
+     *                              in the EXEC result list.
      */
-    public function incr(string $key, int $delta = 1): int
+    public function incr(string $key, int $delta = 1, ?string $clientId = null): int
     {
-        $response = $this->client->execute('kv.incr', $key, ['delta' => $delta]);
+        $data = ['delta' => $delta];
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
+        }
+
+        $response = $this->client->execute('kv.incr', $key, $data);
         $value = $response['value'] ?? 0;
 
         assert(is_int($value) || is_numeric($value));
@@ -75,10 +99,20 @@ class KVStore
 
     /**
      * Decrement a numeric value
+     *
+     * @param string|null $clientId Queue the write into the open MULTI keyed by
+     *                              this client id instead of applying it now.
+     *                              A queued write returns 0 — the real value is
+     *                              in the EXEC result list.
      */
-    public function decr(string $key, int $delta = 1): int
+    public function decr(string $key, int $delta = 1, ?string $clientId = null): int
     {
-        $response = $this->client->execute('kv.decr', $key, ['delta' => $delta]);
+        $data = ['delta' => $delta];
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
+        }
+
+        $response = $this->client->execute('kv.decr', $key, $data);
         $value = $response['value'] ?? 0;
 
         assert(is_int($value) || is_numeric($value));

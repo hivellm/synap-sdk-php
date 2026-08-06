@@ -200,7 +200,7 @@ class SynapClient
 
         // Try native transport (SynapRPC or RESP3) for mapped commands.
         if ($this->native !== null) {
-            $mapped = \Synap\SDK\mapCommand($operation, $payloadData);
+            $mapped = \Synap\SDK\mapCommand($operation, $payloadData, $this->config->getTransport());
             if ($mapped !== null) {
                 [$rawCmd, $args] = $mapped;
                 try {
@@ -281,7 +281,7 @@ class SynapClient
     public function sendCommand(string $command, array $payload = []): array
     {
         if ($this->native !== null) {
-            $mapped = \Synap\SDK\mapCommand($command, $payload);
+            $mapped = \Synap\SDK\mapCommand($command, $payload, $this->config->getTransport());
             if ($mapped !== null) {
                 [$rawCmd, $args] = $mapped;
                 try {

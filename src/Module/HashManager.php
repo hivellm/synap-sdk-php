@@ -23,12 +23,18 @@ class HashManager
      * @param string $field Field name
      * @param string|int|float $value Field value
      */
-    public function set(string $key, string $field, string|int|float $value): bool
-    {
-        $response = $this->client->execute('hash.set', $key, [
-            'field' => $field,
-            'value' => (string) $value,
-        ]);
+    public function set(
+        string $key,
+        string $field,
+        string|int|float $value,
+        ?string $clientId = null
+    ): bool {
+        $data = ['field' => $field, 'value' => (string) $value];
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
+        }
+
+        $response = $this->client->execute('hash.set', $key, $data);
 
         return (bool) ($response['success'] ?? false);
     }
@@ -58,9 +64,14 @@ class HashManager
     /**
      * Delete field from hash
      */
-    public function delete(string $key, string $field): int
+    public function delete(string $key, string $field, ?string $clientId = null): int
     {
-        $response = $this->client->execute('hash.del', $key, ['field' => $field]);
+        $data = ['field' => $field];
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
+        }
+
+        $response = $this->client->execute('hash.del', $key, $data);
 
         return (int) ($response['deleted'] ?? 0);
     }
@@ -138,12 +149,14 @@ class HashManager
     /**
      * Increment field value by integer
      */
-    public function incrBy(string $key, string $field, int $increment): int
+    public function incrBy(string $key, string $field, int $increment, ?string $clientId = null): int
     {
-        $response = $this->client->execute('hash.incrby', $key, [
-            'field' => $field,
-            'increment' => $increment,
-        ]);
+        $data = ['field' => $field, 'increment' => $increment];
+        if ($clientId !== null) {
+            $data['client_id'] = $clientId;
+        }
+
+        $response = $this->client->execute('hash.incrby', $key, $data);
 
         return (int) ($response['value'] ?? 0);
     }

@@ -34,11 +34,14 @@ const TXQUEUEABLE = [
  *
  * Returns null for commands that have no native mapping (HTTP only).
  *
- * @param string               $cmd     Dotted command key, e.g. "kv.set"
- * @param array<string, mixed> $payload Full operation payload
+ * @param string               $cmd       Dotted command key, e.g. "kv.set"
+ * @param array<string, mixed> $payload   Full operation payload
+ * @param string|null          $transport Target transport, for the few commands
+ *                                        whose wire name differs between
+ *                                        SynapRPC and RESP3
  * @return array{0: string, 1: list<mixed>}|null  [WIRE_CMD, args] or null
  */
-function mapCommand(string $cmd, array $payload): ?array
+function mapCommand(string $cmd, array $payload, ?string $transport = null): ?array
 {
     // Transactional writes (payload carries a client_id) travel as
     // `TXQUEUE <client_id> <CMD> <args...>` so the server queues them into the
@@ -49,7 +52,7 @@ function mapCommand(string $cmd, array $payload): ?array
     if (is_scalar($clientId) && (string) $clientId !== '' && !str_starts_with($cmd, 'transaction.')) {
         $rest = $payload;
         unset($rest['client_id']);
-        $inner = mapCommand($cmd, $rest);
+        $inner = mapCommand($cmd, $rest, $transport);
         if ($inner === null || !in_array($inner[0], TXQUEUEABLE, true)) {
             return null;
         }
@@ -302,7 +305,12 @@ function mapCommand(string $cmd, array $payload): ?array
                 array_values((array) ($payload['topics'] ?? []))
             )];
         case 'pubsub.topics':
-            return ['TOPICS', []];
+            // The two native wires name this differently: SynapRPC dispatches
+            // TOPICS and has no PUBSUB, RESP3 dispatches PUBSUB CHANNELS (the
+            // Redis spelling) and has no TOPICS.
+            return $transport === TransportMode::RESP3
+                ? ['PUBSUB', ['CHANNELS']]
+                : ['TOPICS', []];
         case 'pubsub.stats':
             return ['PSSTATS', []];
 
