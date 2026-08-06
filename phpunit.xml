@@ -23,7 +23,10 @@
         </report>
     </coverage>
     <php>
-        <env name="SYNAP_URL" value="http://localhost:15500"/>
+        <!-- The URL is a default, not a pin: `force="false"` lets SYNAP_URL from the
+             environment win, so the same suite can be pointed at a synap:// or
+             resp3:// endpoint instead of only HTTP. -->
+        <env name="SYNAP_URL" value="http://127.0.0.1:15500" force="false"/>
     </php>
 </phpunit>
 

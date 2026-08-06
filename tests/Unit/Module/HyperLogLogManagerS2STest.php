@@ -13,7 +13,7 @@ use Synap\SDK\SynapConfig;
 /**
  * Server-to-Server (S2S) integration tests for HyperLogLogManager.
  * These tests require a running Synap server.
- * Set SYNAP_URL environment variable to point to the server (default: http://localhost:15500).
+ * Set SYNAP_URL environment variable to point to the server (default: http://127.0.0.1:15500).
  */
 class HyperLogLogManagerS2STest extends TestCase
 {
@@ -24,7 +24,7 @@ class HyperLogLogManagerS2STest extends TestCase
     {
         parent::setUp();
 
-        $url = getenv('SYNAP_URL') ?: ($_ENV['SYNAP_URL'] ?? 'http://localhost:15500');
+        $url = getenv('SYNAP_URL') ?: ($_ENV['SYNAP_URL'] ?? 'http://127.0.0.1:15500');
         $config = new SynapConfig($url);
         $this->client = new SynapClient($config);
         $this->hyperloglog = $this->client->hyperloglog();

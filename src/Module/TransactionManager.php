@@ -30,7 +30,7 @@ class TransactionManager
         }
 
         $response = $this->client->execute('transaction.multi', '', $payload);
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         return [
             'success' => $payload['success'] ?? true,
@@ -52,7 +52,7 @@ class TransactionManager
         }
 
         $response = $this->client->execute('transaction.discard', '', $payload);
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         return [
             'success' => $payload['success'] ?? true,
@@ -80,7 +80,7 @@ class TransactionManager
         }
 
         $response = $this->client->execute('transaction.watch', '', $payload);
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         return [
             'success' => $payload['success'] ?? true,
@@ -102,7 +102,7 @@ class TransactionManager
         }
 
         $response = $this->client->execute('transaction.unwatch', '', $payload);
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         return [
             'success' => $payload['success'] ?? true,
@@ -124,7 +124,7 @@ class TransactionManager
         }
 
         $response = $this->client->execute('transaction.exec', '', $payload);
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         if (isset($payload['results']) && is_array($payload['results'])) {
             return [

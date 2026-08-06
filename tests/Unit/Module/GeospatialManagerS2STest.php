@@ -20,7 +20,7 @@ final class GeospatialManagerS2STest extends TestCase
 
     protected function setUp(): void
     {
-        $url = getenv('SYNAP_URL') ?: 'http://localhost:15500';
+        $url = getenv('SYNAP_URL') ?: 'http://127.0.0.1:15500';
         $config = new SynapConfig($url);
         $client = new SynapClient($config);
         $this->geospatial = new GeospatialManager($client);

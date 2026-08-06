@@ -23,7 +23,7 @@ final class TransactionManagerS2STest extends TestCase
         if (getenv('SYNAP_S2S') !== 'true') {
             $this->markTestSkipped('S2S tests require SYNAP_S2S=true and a running server');
         }
-        $url = getenv('SYNAP_URL') ?: 'http://localhost:15500';
+        $url = getenv('SYNAP_URL') ?: 'http://127.0.0.1:15500';
         $config = new SynapConfig($url);
         $this->client = new SynapClient($config);
         $this->transaction = $this->client->transaction();

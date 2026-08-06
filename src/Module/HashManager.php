@@ -95,7 +95,7 @@ class HashManager
     {
         $response = $this->client->execute('hash.keys', $key);
 
-        return $response['fields'] ?? [];
+        return $response['keys'] ?? [];
     }
 
     /**
@@ -105,7 +105,9 @@ class HashManager
      */
     public function values(string $key): array
     {
-        $response = $this->client->execute('hash.values', $key);
+        // `hash.vals` is the command the server dispatches; `hash.values` only
+        // ever worked because the native mapper accepted it.
+        $response = $this->client->execute('hash.vals', $key);
 
         return $response['values'] ?? [];
     }

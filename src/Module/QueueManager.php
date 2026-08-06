@@ -46,9 +46,16 @@ class QueueManager
         ?int $priority = null,
         ?int $maxRetries = null
     ): string {
+        // The server takes the message as a byte array, not as a JSON value:
+        // sending the value itself came back "Missing 'payload' field" over
+        // HTTP. Strings travel as their own bytes, anything else as its JSON
+        // encoding — the same convention the other SDKs use.
+        $encoded = is_string($message) ? $message : (string) json_encode($message);
+        $bytes = array_values(unpack('C*', $encoded) ?: []);
+
         $response = $this->client->sendCommand('queue.publish', [
             'queue'       => $queue,
-            'payload'     => $message,
+            'payload'     => $bytes,
             'priority'    => $priority ?? 0,
             'max_retries' => $maxRetries ?? 3,
         ]);

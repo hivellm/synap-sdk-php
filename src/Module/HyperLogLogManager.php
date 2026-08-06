@@ -39,7 +39,7 @@ class HyperLogLogManager
         ]);
 
         // Extract from payload if present
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         /** @var int|mixed $added */
         $added = $payload['added'] ?? 0;
@@ -56,7 +56,7 @@ class HyperLogLogManager
         $response = $this->client->execute('hyperloglog.pfcount', $key, []);
 
         // Extract from payload if present
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         /** @var int|mixed $count */
         $count = $payload['count'] ?? 0;
@@ -80,7 +80,7 @@ class HyperLogLogManager
         ]);
 
         // Extract from payload if present
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         /** @var int|mixed $count */
         $count = $payload['count'] ?? 0;
@@ -97,7 +97,7 @@ class HyperLogLogManager
         $response = $this->client->execute('hyperloglog.stats', '', []);
 
         // Extract from payload if present
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         return [
             'total_hlls' => (int) ($payload['total_hlls'] ?? 0),

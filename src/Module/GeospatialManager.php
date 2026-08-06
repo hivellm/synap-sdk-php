@@ -49,7 +49,7 @@ class GeospatialManager
             'ch' => $ch,
         ]);
 
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
         /** @var int|mixed $added */
         $added = $payload['added'] ?? 0;
         return (int) $added;
@@ -69,7 +69,7 @@ class GeospatialManager
             'unit' => $unit,
         ]);
 
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
         $distance = $payload['distance'] ?? null;
         return $distance !== null ? (float) $distance : null;
     }
@@ -122,7 +122,7 @@ class GeospatialManager
         }
 
         $response = $this->client->execute('geospatial.georadius', $key, $data);
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
         return $payload['results'] ?? [];
     }
 
@@ -164,7 +164,7 @@ class GeospatialManager
         }
 
         $response = $this->client->execute('geospatial.georadiusbymember', $key, $data);
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
         return $payload['results'] ?? [];
     }
 
@@ -177,7 +177,7 @@ class GeospatialManager
     public function geoPos(string $key, array $members): array
     {
         $response = $this->client->execute('geospatial.geopos', $key, ['members' => $members]);
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
         return $payload['coordinates'] ?? [];
     }
 
@@ -190,7 +190,7 @@ class GeospatialManager
     public function geoHash(string $key, array $members): array
     {
         $response = $this->client->execute('geospatial.geohash', $key, ['members' => $members]);
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
         return $payload['geohashes'] ?? [];
     }
 
@@ -255,7 +255,7 @@ class GeospatialManager
 
         $response = $this->client->execute('geospatial.geosearch', $key, $payload);
 
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         /** @var list<array{member: string, distance?: float, coord?: array{lat: float, lon: float}}> $results */
         $results = $payload['results'] ?? [];
@@ -270,7 +270,7 @@ class GeospatialManager
     public function stats(): array
     {
         $response = $this->client->execute('geospatial.stats', '', []);
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
         return [
             'total_keys' => (int) ($payload['total_keys'] ?? 0),
             'total_locations' => (int) ($payload['total_locations'] ?? 0),

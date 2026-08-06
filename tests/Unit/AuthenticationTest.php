@@ -11,7 +11,7 @@ use Synap\SDK\SynapConfig;
 
 final class AuthenticationTest extends TestCase
 {
-    private const TEST_URL = 'http://localhost:15500';
+    private const TEST_URL = 'http://127.0.0.1:15500';
     private const TEST_USERNAME = 'root';
     private const TEST_PASSWORD = 'root';
 

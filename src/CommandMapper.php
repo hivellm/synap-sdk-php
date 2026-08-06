@@ -133,6 +133,7 @@ function mapCommand(string $cmd, array $payload, ?string $transport = null): ?ar
             return ['HGETALL', [$key]];
         case 'hash.keys':
             return ['HKEYS', [$key]];
+        case 'hash.vals':
         case 'hash.values':
             return ['HVALS', [$key]];
         case 'hash.len':
@@ -147,46 +148,53 @@ function mapCommand(string $cmd, array $payload, ?string $transport = null): ?ar
             }
             return ['HMSET', $args];
         }
+        // The modules send `increment`; reading only `amount` meant every
+        // native increment silently used the default of 1.
         case 'hash.incrby':
-            return ['HINCRBY', [$key, $field, $payload['amount'] ?? 1]];
+            return ['HINCRBY', [$key, $field, $payload['increment'] ?? $payload['amount'] ?? 1]];
         case 'hash.incrbyfloat':
-            return ['HINCRBYFLOAT', [$key, $field, $payload['amount'] ?? 1.0]];
+            return ['HINCRBYFLOAT', [$key, $field, $payload['increment'] ?? $payload['amount'] ?? 1.0]];
         case 'hash.setnx':
             return ['HSETNX', [$key, $field, $value]];
 
         // ── List ─────────────────────────────────────────────────────────────
+        // The push/pop family takes a list of values, not the single `value`
+        // field: pushing sent the whole array as one element, and popping
+        // ignored the requested count.
         case 'list.lpush':
-            return ['LPUSH', [$key, $value]];
+            return ['LPUSH', array_merge([$key], array_values((array) ($payload['values'] ?? [$value])))];
         case 'list.rpush':
-            return ['RPUSH', [$key, $value]];
+            return ['RPUSH', array_merge([$key], array_values((array) ($payload['values'] ?? [$value])))];
         case 'list.lpop':
-            return ['LPOP', [$key]];
+            return ['LPOP', [$key, $payload['count'] ?? 1]];
         case 'list.rpop':
-            return ['RPOP', [$key]];
+            return ['RPOP', [$key, $payload['count'] ?? 1]];
+        // The modules send the short spellings, which the server accepts as
+        // aliases; without them here the command had no native mapping at all.
         case 'list.lrange':
+        case 'list.range':
             return ['LRANGE', [$key, $payload['start'] ?? 0, $payload['stop'] ?? -1]];
         case 'list.llen':
+        case 'list.len':
             return ['LLEN', [$key]];
-        case 'list.lindex':
-            return ['LINDEX', [$key, $payload['index'] ?? 0]];
-        case 'list.lset':
-            return ['LSET', [$key, $payload['index'] ?? 0, $value]];
-        case 'list.lrem':
-            return ['LREM', [$key, $payload['count'] ?? 0, $value]];
-        case 'list.ltrim':
-            return ['LTRIM', [$key, $payload['start'] ?? 0, $payload['stop'] ?? -1]];
-        case 'list.lpos':
-            return ['LPOS', [$key, $value]];
+            // LINDEX, LSET, LTRIM, LREM and LPOS have no native dispatcher —
+            // neither SynapRPC nor RESP3 answers them — so they are left
+            // unmapped on purpose. Returning null raises
+            // UnsupportedCommandException, which is honest; mapping them
+            // produced "unknown command" from the server instead.
 
         // ── Set ──────────────────────────────────────────────────────────────
+        // Like the list family, these take `members`, and the modules send
+        // `set.rem` rather than the `set.remove` this mapper knew about.
         case 'set.add':
-            return ['SADD', [$key, $value]];
+            return ['SADD', array_merge([$key], array_values((array) ($payload['members'] ?? [$value])))];
+        case 'set.rem':
         case 'set.remove':
-            return ['SREM', [$key, $value]];
+            return ['SREM', array_merge([$key], array_values((array) ($payload['members'] ?? [$value])))];
         case 'set.members':
             return ['SMEMBERS', [$key]];
         case 'set.ismember':
-            return ['SISMEMBER', [$key, $value]];
+            return ['SISMEMBER', [$key, $payload['member'] ?? $value]];
         case 'set.card':
             return ['SCARD', [$key]];
         case 'set.pop':
@@ -234,9 +242,17 @@ function mapCommand(string $cmd, array $payload, ?string $transport = null): ?ar
         case 'queue.delete':
             return ['QDELETE', [(string) ($payload['queue'] ?? '')]];
         case 'queue.publish': {
+            // The module hands over the message as a byte array (that is what
+            // the HTTP endpoint takes); the native wire wants the bytes as a
+            // string, so fold it back rather than JSON-encoding the array.
+            $message = $payload['payload'] ?? null;
+            $body = is_array($message) && $message === array_filter($message, 'is_int')
+                ? implode('', array_map('chr', $message))
+                : json_encode($message);
+
             $args = [
                 (string) ($payload['queue'] ?? ''),
-                json_encode($payload['payload'] ?? null),
+                $body,
                 (int)    ($payload['priority'] ?? 0),
                 (int)    ($payload['max_retries'] ?? 3),
             ];
@@ -405,6 +421,56 @@ function mapCommand(string $cmd, array $payload, ?string $transport = null): ?ar
 }
 
 /**
+ * Map an HTTP reply payload to the same array shape the native path produces.
+ *
+ * The StreamableHTTP endpoint answers with an envelope
+ * (`{success, request_id, payload, error}`) whose payload is already a rich
+ * JSON object for most commands, while the native path hands modules the
+ * output of {@see mapResponse()}. Modules read one shape, so the payload is
+ * normalised here: the envelope is peeled off by the caller, and the handful of
+ * commands whose HTTP payload names a field differently — or is a bare scalar —
+ * are realigned.
+ *
+ * @param string $cmd     Dotted SDK command key, e.g. "kv.get"
+ * @param mixed  $payload The envelope's `payload` field
+ * @return array<string, mixed>
+ */
+function mapHttpResponse(string $cmd, mixed $payload): array
+{
+    /** @var array<string, mixed> $fields */
+    $fields = is_array($payload) ? $payload : [];
+
+    switch ($cmd) {
+        // A bare scalar on the wire; the modules read a named field.
+        case 'kv.get':
+        case 'set.pop':
+            return ['value' => $payload];
+
+        // The server reports whether the field was newly created; the module
+        // asks whether the write succeeded, which it did unless it threw.
+        case 'hash.set':
+        case 'hash.mset':
+            return $fields + ['success' => true];
+
+        // `set.card` is served by the size handler, which names the count
+        // `size`; the canonical field is `cardinality`.
+        case 'set.card':
+            if (array_key_exists('size', $fields)) {
+                return $fields + ['cardinality' => $fields['size']];
+            }
+            return is_array($payload) ? $fields : ['cardinality' => $payload];
+
+        default:
+            if (is_array($payload)) {
+                return $fields;
+            }
+            // Anything else scalar (or null) keeps the envelope-free shape the
+            // modules already tolerate.
+            return $payload === null ? [] : ['value' => $payload];
+    }
+}
+
+/**
  * Map a raw wire response to the array shape expected by SDK modules.
  *
  * @param string $cmd Dotted SDK command key, e.g. "kv.get"
@@ -460,6 +526,10 @@ function mapResponse(string $cmd, mixed $raw): array
         case 'hash.get':
             return ['value' => $raw];
         case 'hash.set':
+            // HSET answers 1 for a new field and 0 for an overwrite, but both
+            // are successful writes — reporting failure on every update is
+            // wrong. `created` keeps the distinction for callers that want it.
+            return ['success' => true, 'created' => (bool) $raw];
         case 'hash.setnx':
             return ['success' => (bool) $raw];
         case 'hash.del':
@@ -477,6 +547,7 @@ function mapResponse(string $cmd, mixed $raw): array
             return ['fields' => is_array($raw) ? $raw : []];
         case 'hash.keys':
             return ['keys' => is_array($raw) ? $raw : []];
+        case 'hash.vals':
         case 'hash.values':
             return ['values' => is_array($raw) ? $raw : []];
         case 'hash.len':
@@ -495,15 +566,25 @@ function mapResponse(string $cmd, mixed $raw): array
             return ['length' => $raw];
         case 'list.lpop':
         case 'list.rpop':
-            return ['value' => $raw];
+            // The modules read `values`: popping with a count answers an array,
+            // popping one answers the element itself.
+            if (is_array($raw)) {
+                return ['values' => $raw, 'value' => $raw[0] ?? null];
+            }
+            return ['values' => $raw === null ? [] : [$raw], 'value' => $raw];
         case 'list.lrange':
+        case 'list.range':
             return ['values' => is_array($raw) ? $raw : []];
         case 'list.llen':
+        case 'list.len':
             return ['length' => $raw];
         case 'list.lindex':
+        case 'list.index':
             return ['value' => $raw];
         case 'list.lset':
+        case 'list.set':
         case 'list.ltrim':
+        case 'list.trim':
             return ['success' => $raw === 'OK' || $raw === true];
         case 'list.lrem':
             return ['removed' => $raw];
@@ -513,6 +594,7 @@ function mapResponse(string $cmd, mixed $raw): array
         // ── Set ──────────────────────────────────────────────────────────────
         case 'set.add':
             return ['added' => $raw];
+        case 'set.rem':
         case 'set.remove':
             return ['removed' => $raw];
         case 'set.members':

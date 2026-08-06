@@ -11,12 +11,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Catches the PHP SDK up with the server: it was still on 1.2.3 while the server
 reached 1.3.1, so it carried neither the 1.3.0 transaction work nor the 1.3.1
-stream fixes. The pub/sub gap was not a missing feature but a broken wire —
+stream fixes. A transport parity harness — the same 37 module calls run over
+HTTP, SynapRPC and RESP3 — took the three wires from 13 disagreeing results to
+one, and that one is a documented server-side gap rather than an SDK bug
+(`LINDEX`/`LSET`/`LTRIM` have no native dispatcher, so `list()->index()` and
+friends are HTTP-only). The pub/sub gap was not a missing feature but a broken
+wire —
 every command was mapped under a name the server has never dispatched — which
 had shipped that way because nothing tested the command mapping. 1.3.0 is
 skipped so the number matches the server release this SDK is verified against.
 
 ### Fixed
+- **The read surface works over HTTP at all.** `execute()` and `sendCommand()`
+  returned the raw StreamableHTTP envelope (`{success, request_id, payload,
+  error}`) while the native path returned the payload normalised by
+  `mapResponse()`. Modules read the payload's fields, so over HTTP every read
+  found nothing and reported the empty value: `kv()->get()` answered `null` for
+  a key that existed, `hash()->getAll()` an empty array, `set()->card()` zero.
+  Writes worked, which made it look like data loss rather than a client bug.
+  Both paths now hand modules one shape, via the new `mapHttpResponse()`.
+- **Native list, set and hash calls carry their real arguments.** `set.add`
+  and `set.rem` sent the whole members array as a single element (so a member
+  arrived JSON-quoted), `set.ismember` sent nothing at all ("argument 1 must be
+  bytes"), the list push/pop family ignored `values` and `count`, `hash.incrBy`
+  ignored the increment and always moved by 1, and `set.rem`, `list.range`,
+  `list.len` and `list.index` had no native mapping under the names the modules
+  send. `LINDEX`, `LSET`, `LTRIM`, `LREM` and `LPOS` are now deliberately
+  unmapped — no native transport dispatches them, so they raise
+  `UnsupportedCommandException` instead of the server's "unknown command".
+- **Publishing to a queue works over HTTP.** The endpoint takes the message as
+  a byte array; the SDK sent the value itself and got back
+  `Missing 'payload' field`.
+- **`HashManager::keys()` and `values()`.** `keys()` read a `fields` key the
+  reply has never had (it is `keys`), and `values()` sent `hash.values` where
+  the server dispatches `hash.vals`.
+- **`hash.set` reports success on an overwrite.** `HSET` answers 0 when the
+  field already existed, which the SDK surfaced as a failed write; both are
+  successful writes, and `created` keeps the distinction.
 - **Deleting a key over HTTP works.** `KVStore::delete()` sent `kv.delete`,
   which the server does not dispatch — it answers `kv.del`. The native mapper
   accepted both spellings, so the break was HTTP-only and came back as

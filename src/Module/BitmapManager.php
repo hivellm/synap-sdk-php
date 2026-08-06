@@ -35,7 +35,7 @@ class BitmapManager
         ]);
 
         // Extract from payload if present
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         /** @var int|mixed $oldValue */
         $oldValue = $payload['old_value'] ?? 0;
@@ -52,7 +52,7 @@ class BitmapManager
         $response = $this->client->execute('bitmap.getbit', $key, ['offset' => $offset]);
 
         // Extract from payload if present
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         /** @var int|mixed $value */
         $value = $payload['value'] ?? 0;
@@ -79,7 +79,7 @@ class BitmapManager
         $response = $this->client->execute('bitmap.bitcount', $key, $data);
 
         // Extract from payload if present
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         /** @var int|mixed $count */
         $count = $payload['count'] ?? 0;
@@ -111,7 +111,7 @@ class BitmapManager
         $response = $this->client->execute('bitmap.bitpos', $key, $data);
 
         // Extract from payload if present
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         $position = $payload['position'] ?? null;
         if ($position === null) {
@@ -145,7 +145,7 @@ class BitmapManager
         ]);
 
         // Extract from payload if present
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         /** @var int|mixed $length */
         $length = $payload['length'] ?? 0;
@@ -166,7 +166,7 @@ class BitmapManager
         ]);
 
         // Extract from payload if present
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         /** @var list<int>|mixed $results */
         $results = $payload['results'] ?? [];
@@ -187,7 +187,7 @@ class BitmapManager
         $response = $this->client->execute('bitmap.stats', '', []);
 
         // Extract from payload if present
-        $payload = $response['payload'] ?? $response;
+        $payload = $response;
 
         return [
             'total_bitmaps' => (int) ($payload['total_bitmaps'] ?? 0),

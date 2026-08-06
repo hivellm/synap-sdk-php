@@ -37,7 +37,7 @@ class RpcParityS2STest extends TestCase
 
     private function httpClient(): SynapClient
     {
-        $url = getenv('SYNAP_HTTP_URL') ?: 'http://localhost:15500';
+        $url = getenv('SYNAP_HTTP_URL') ?: 'http://127.0.0.1:15500';
         return new SynapClient(new SynapConfig($url));
     }
 

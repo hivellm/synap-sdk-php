@@ -260,8 +260,11 @@ class SynapClient
                 throw SynapException::serverError($errorMessage);
             }
 
-            /** @var array<string, mixed> $result */
-            return $result;
+            // Hand back the payload in the same shape the native path produces.
+            // Returning the envelope made every module that reads a field off
+            // the reply — kv()->get(), hash()->get(), and the rest of the read
+            // surface — see nothing and report the empty value.
+            return \Synap\SDK\mapHttpResponse($operation, $result['payload'] ?? null);
         } catch (GuzzleException $e) {
             throw SynapException::networkError($e->getMessage());
         }
@@ -333,8 +336,9 @@ class SynapClient
                 throw SynapException::serverError($errorMessage);
             }
 
-            /** @var array<string, mixed> $result */
-            return $result['payload'] ?? $result;
+            // Same normalisation as execute(): modules read one shape whatever
+            // the transport.
+            return \Synap\SDK\mapHttpResponse($command, $result['payload'] ?? null);
         } catch (GuzzleException $e) {
             throw SynapException::networkError($e->getMessage());
         }

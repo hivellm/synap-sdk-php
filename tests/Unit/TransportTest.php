@@ -345,7 +345,16 @@ final class TransportTest extends TestCase
 
     public function testMapResponseListLpop(): void
     {
-        $this->assertSame(['value' => 'item'], mapResponse('list.lpop', 'item'));
+        // The module reads `values`, since popping with a count answers a list;
+        // `value` stays for the single-element case.
+        $this->assertSame(
+            ['values' => ['item'], 'value' => 'item'],
+            mapResponse('list.lpop', 'item')
+        );
+        $this->assertSame(
+            ['values' => ['a', 'b'], 'value' => 'a'],
+            mapResponse('list.lpop', ['a', 'b'])
+        );
     }
 
     public function testMapResponseSetAdd(): void
