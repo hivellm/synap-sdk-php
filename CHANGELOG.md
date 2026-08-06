@@ -5,6 +5,36 @@ All notable changes to the Synap PHP SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **Pub/Sub reaches the native transports at all.** Every pub/sub command was
+  mapped with a `P` prefix the server has never dispatched — `PPUBLISH`,
+  `PSUBSCRIBE`, `PUNSUBSCRIBE`, `PTOPICS`, `PSTATS` — so publishing or
+  subscribing over SynapRPC/RESP3 failed as an unknown command. They now map to
+  `PUBLISH`, `SUBSCRIBE`, `UNSUBSCRIBE`, `TOPICS` and `PSSTATS`. `SUBSCRIBE`
+  takes topics only (the subscriber id is assigned by the server and returned),
+  and the reply is passed through so callers keep the `subscriber_id` they need
+  in order to unsubscribe.
+- **`stream.stats` reaches the native transports.** It had no `SSTATS` mapping,
+  so room stats were HTTP-only.
+
+### Added
+- **Transactional writes on the native transports** (ADR 005, server 1.3.0): a
+  write carrying a `client_id` now travels as `TXQUEUE <client_id> <CMD>
+  <args...>` so the server queues it into the open `MULTI` instead of executing
+  it immediately. Commands the server cannot queue are refused with
+  `UnsupportedCommandException` rather than silently executed outside the
+  transaction. The queueable set matches the server's `TransactionCommand`
+  enum: `SET`/`DEL`/`INCR[BY]`/`DECR[BY]`/`HSET`/`HDEL`/`HINCRBY`/`LPUSH`/
+  `RPUSH`/`LPOP`/`RPOP`/`SADD`/`SREM`.
+- **Room wipe discriminator** (hivellm/synap#257, server 1.3.1): the
+  `stream.stats` payload carries `created_at` and `generation`. Generation
+  identifies this incarnation of the room and is strictly increasing across
+  every room creation, including server restarts — remember it alongside your
+  offset cursor and rewind when it changes, because every counter in the
+  payload resets on a wipe and can coincide with a pre-wipe value.
+
 ## [1.2.3] - 2026-07-20
 
 Realigns the PHP SDK onto the shared Synap SDK version — all six SDKs now sit at

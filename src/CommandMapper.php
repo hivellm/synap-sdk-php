@@ -16,6 +16,20 @@ namespace Synap\SDK;
  */
 
 /**
+ * Raw commands the server can queue inside a MULTI via `TXQUEUE` (ADR 005) —
+ * exactly the server's TransactionCommand enum.
+ *
+ * @var list<string>
+ */
+const TXQUEUEABLE = [
+    'SET', 'DEL',
+    'INCR', 'DECR', 'INCRBY', 'DECRBY',
+    'HSET', 'HDEL', 'HINCRBY',
+    'LPUSH', 'RPUSH', 'LPOP', 'RPOP',
+    'SADD', 'SREM',
+];
+
+/**
  * Map a dotted SDK command + payload to a native wire command + ordered args.
  *
  * Returns null for commands that have no native mapping (HTTP only).
@@ -26,6 +40,22 @@ namespace Synap\SDK;
  */
 function mapCommand(string $cmd, array $payload): ?array
 {
+    // Transactional writes (payload carries a client_id) travel as
+    // `TXQUEUE <client_id> <CMD> <args...>` so the server queues them into the
+    // open MULTI instead of executing immediately (ADR 005). Commands the
+    // server cannot queue return null (-> UnsupportedCommandException), never a
+    // silent execution outside the transaction.
+    $clientId = $payload['client_id'] ?? null;
+    if (is_scalar($clientId) && (string) $clientId !== '' && !str_starts_with($cmd, 'transaction.')) {
+        $rest = $payload;
+        unset($rest['client_id']);
+        $inner = mapCommand($cmd, $rest);
+        if ($inner === null || !in_array($inner[0], TXQUEUEABLE, true)) {
+            return null;
+        }
+        return ['TXQUEUE', array_merge([(string) $clientId, $inner[0]], $inner[1])];
+    }
+
     $key    = (string) ($payload['key'] ?? '');
     $value  = $payload['value'] ?? null;
     $field  = (string) ($payload['field'] ?? '');
@@ -253,27 +283,28 @@ function mapCommand(string $cmd, array $payload): ?array
             ]];
         case 'stream.list':
             return ['SLIST', []];
+        case 'stream.stats':
+            return ['SSTATS', [(string) ($payload['room'] ?? '')]];
 
         // ── Pub/Sub ───────────────────────────────────────────────────────────
+        // The wire names carry no `P` prefix: the server dispatches PUBLISH /
+        // SUBSCRIBE / UNSUBSCRIBE / PUBSUB CHANNELS / PSSTATS.
         case 'pubsub.publish':
-            return ['PPUBLISH', [
+            return ['PUBLISH', [
                 (string) ($payload['topic'] ?? ''),
                 json_encode($payload['payload'] ?? null),
             ]];
         case 'pubsub.subscribe':
-            return ['PSUBSCRIBE', array_merge(
-                [(string) ($payload['subscriber_id'] ?? '')],
-                (array) ($payload['topics'] ?? [])
-            )];
+            return ['SUBSCRIBE', array_values((array) ($payload['topics'] ?? []))];
         case 'pubsub.unsubscribe':
-            return ['PUNSUBSCRIBE', array_merge(
+            return ['UNSUBSCRIBE', array_merge(
                 [(string) ($payload['subscriber_id'] ?? '')],
-                (array) ($payload['topics'] ?? [])
+                array_values((array) ($payload['topics'] ?? []))
             )];
         case 'pubsub.topics':
-            return ['PTOPICS', []];
+            return ['TOPICS', []];
         case 'pubsub.stats':
-            return ['PSTATS', []];
+            return ['PSSTATS', []];
 
         // ── Transaction ───────────────────────────────────────────────────────
         case 'transaction.multi':
@@ -563,12 +594,18 @@ function mapResponse(string $cmd, mixed $raw): array
             return ['events' => is_array($raw) ? $raw : []];
         case 'stream.list':
             return ['rooms' => is_array($raw) ? $raw : []];
+        case 'stream.stats':
+            // SSTATS replies with the stats map itself, including the
+            // created_at/generation wipe discriminators added in 1.3.1.
+            return is_array($raw) ? $raw : [];
 
         // ── Pub/Sub ───────────────────────────────────────────────────────────
         case 'pubsub.publish':
             return ['subscribers_matched' => is_int($raw) ? $raw : (int) ($raw ?? 0)];
         case 'pubsub.subscribe':
-            return ['success' => (bool) $raw];
+            // SUBSCRIBE replies with { subscriber_id, subscription_count }; the
+            // caller needs the id to unsubscribe later.
+            return is_array($raw) ? $raw : ['success' => (bool) $raw];
         case 'pubsub.unsubscribe':
             return ['success' => (bool) $raw];
         case 'pubsub.topics':
