@@ -7,6 +7,7 @@ namespace Synap\SDK\Tests\Unit;
 use PHPUnit\Framework\TestCase;
 use Synap\SDK\Exception\SynapException;
 use Synap\SDK\SynapConfig;
+use Synap\SDK\TransportMode;
 
 final class SynapConfigTest extends TestCase
 {
@@ -54,12 +55,21 @@ final class SynapConfigTest extends TestCase
         $this->assertSame(60, $config2->getTimeout());
     }
 
-    public function testEmptyBaseUrlThrowsException(): void
+    /**
+     * An empty URL falls back to the same default the constructor's own
+     * parameter carries — `synap://127.0.0.1:15501`. The test used to expect a
+     * "Base URL cannot be empty" exception, which the constructor stopped
+     * throwing when that default was introduced.
+     */
+    public function testEmptyBaseUrlFallsBackToTheDefaultEndpoint(): void
     {
-        $this->expectException(SynapException::class);
-        $this->expectExceptionMessage('Base URL cannot be empty');
+        $explicitlyEmpty = new SynapConfig('');
+        $defaulted = new SynapConfig();
 
-        new SynapConfig('');
+        $this->assertSame(TransportMode::SYNAP_RPC, $explicitlyEmpty->getTransport());
+        $this->assertSame($defaulted->getRpcHost(), $explicitlyEmpty->getRpcHost());
+        $this->assertSame($defaulted->getRpcPort(), $explicitlyEmpty->getRpcPort());
+        $this->assertSame($defaulted->getBaseUrl(), $explicitlyEmpty->getBaseUrl());
     }
 
     public function testBaseUrlTrimsTrailingSlash(): void
