@@ -179,6 +179,31 @@ final class TransportTest extends TestCase
         $this->assertSame(['counter'], $result[1]);
     }
 
+    public function testMapCommandKvIncrAndDecrWithAmountMapToIncrByAndDecrBy(): void
+    {
+        // The HTTP envelope applies `amount`; the native maps must too.
+        foreach ([10, 0, -7] as $amount) {
+            $this->assertSame(['INCRBY', ['c', $amount]], mapCommand('kv.incr', ['key' => 'c', 'amount' => $amount]));
+        }
+        $this->assertSame(['DECRBY', ['c', 4]], mapCommand('kv.decr', ['key' => 'c', 'amount' => 4]));
+        $this->assertSame(['DECR', ['c']], mapCommand('kv.decr', ['key' => 'c', 'amount' => null]));
+    }
+
+    public function testMapCommandKvIncrNonIntegerAmountTravelsAsJsonText(): void
+    {
+        // Refused by the server on every transport, as it is over HTTP.
+        $this->assertSame(['INCRBY', ['c', '"10"']], mapCommand('kv.incr', ['key' => 'c', 'amount' => '10']));
+        $this->assertSame(['INCRBY', ['c', '1.5']], mapCommand('kv.incr', ['key' => 'c', 'amount' => 1.5]));
+    }
+
+    public function testMapCommandKvIncrWithAmountInsideTransactionQueuesIncrBy(): void
+    {
+        $this->assertSame(
+            ['TXQUEUE', ['tx1', 'INCRBY', 'c', 3]],
+            mapCommand('kv.incr', ['key' => 'c', 'amount' => 3, 'client_id' => 'tx1'])
+        );
+    }
+
     public function testMapCommandKvTtl(): void
     {
         $result = mapCommand('kv.ttl', ['key' => 'mykey']);

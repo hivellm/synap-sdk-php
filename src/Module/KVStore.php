@@ -84,7 +84,7 @@ class KVStore
      */
     public function incr(string $key, int $delta = 1, ?string $clientId = null): int
     {
-        $data = ['delta' => $delta];
+        $data = ['amount' => $delta];
         if ($clientId !== null) {
             $data['client_id'] = $clientId;
         }
@@ -107,7 +107,7 @@ class KVStore
      */
     public function decr(string $key, int $delta = 1, ?string $clientId = null): int
     {
-        $data = ['delta' => $delta];
+        $data = ['amount' => $delta];
         if ($clientId !== null) {
             $data['client_id'] = $clientId;
         }

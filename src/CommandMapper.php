@@ -30,6 +30,29 @@ const TXQUEUEABLE = [
 ];
 
 /**
+ * Map `kv.incr` / `kv.decr`: INCR/DECR without an `amount`, INCRBY/DECRBY with one.
+ *
+ * The HTTP envelope applies `amount`, so the native maps must too. An integer
+ * travels as an integer; anything else travels as its JSON text -- the exact
+ * text the HTTP envelope receives -- so the server refuses it on every
+ * transport instead of one transport turning it into a different number.
+ *
+ * @param array<string, mixed> $payload
+ * @return array{0: string, 1: list<mixed>}
+ */
+function counterCommand(string $plain, string $by, mixed $key, array $payload): array
+{
+    $amount = $payload['amount'] ?? null;
+    if ($amount === null) {
+        return [$plain, [$key]];
+    }
+    if (is_int($amount)) {
+        return [$by, [$key, $amount]];
+    }
+    return [$by, [$key, json_encode($amount, JSON_THROW_ON_ERROR)]];
+}
+
+/**
  * Map a dotted SDK command + payload to a native wire command + ordered args.
  *
  * Returns null for commands that have no native mapping (HTTP only).
@@ -86,11 +109,11 @@ function mapCommand(string $cmd, array $payload, ?string $transport = null): ?ar
         case 'kv.persist':
             return ['PERSIST', [$key]];
         case 'kv.incr':
-            return ['INCR', [$key]];
+            return counterCommand('INCR', 'INCRBY', $key, $payload);
         case 'kv.incrby':
             return ['INCRBY', [$key, $payload['amount'] ?? 1]];
         case 'kv.decr':
-            return ['DECR', [$key]];
+            return counterCommand('DECR', 'DECRBY', $key, $payload);
         case 'kv.decrby':
             return ['DECRBY', [$key, $payload['amount'] ?? 1]];
         case 'kv.append':
